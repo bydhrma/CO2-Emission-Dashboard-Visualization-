@@ -2,7 +2,6 @@
 CO₂ Policy Intelligence Dashboard
 Professional editorial theme inspired by Our World in Data
 """
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,11 +9,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.ticker as mticker
 import joblib
-import anthropic
+import time
+import google.generativeai as genai
 
-# ═══════════════════════════════════════════════════════════
 #  PAGE CONFIG 
-# ═══════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="CO₂ Policy Intelligence",
     page_icon="🌍",
@@ -22,9 +20,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ═══════════════════════════════════════════════════════════
 #  DESIGN SYSTEM
-# ═══════════════════════════════════════════════════════════
 st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
 
@@ -103,7 +99,7 @@ html, body, .stApp {
 /* ── Section headers (editorial style) ── */
 .section-head {
     border-left: 4px solid #c0392b;
-    padding-left: 14px;
+    padding-left: 16px;
     margin-bottom: 18px;
 }
 .section-head h3 {
@@ -122,7 +118,7 @@ html, body, .stApp {
     border: 1px solid #c5d0f0;
     border-left: 4px solid #3b5bdb;
     border-radius: 0 8px 8px 0;
-    padding: 14px 18px;
+    padding: 14px 18px 14px 16px;
     margin-bottom: 16px;
     font-size: 13px; color: #2c3e8a;
     line-height: 1.7;
@@ -208,7 +204,7 @@ html, body, .stApp {
     border: 1px solid #e8dfc0;
     border-left: 4px solid #d4860a;
     border-radius: 0 8px 8px 0;
-    padding: 16px 20px;
+    padding: 16px 20px 16px 16px;
     font-size: 13px; color: #444; line-height: 1.85;
     margin-top: 10px;
 }
@@ -229,6 +225,7 @@ html, body, .stApp {
 .conf-val { font-size:11px; color:#888; width:38px; text-align:right; flex-shrink:0; }
 
 /* ── Sidebar base ── */
+[data-testid="stSidebar"] { display: flex !important; flex-direction: column !important; }
 [data-testid="stSidebar"] .stMarkdown p { color: #444 !important; font-size:13px; }
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
@@ -241,6 +238,11 @@ html, body, .stApp {
     margin-bottom: 6px;
 }
 .sidebar-logo span { color: #c0392b; }
+.sidebar-footer {
+    margin-top: auto !important;
+    padding-top: 12px !important;
+    border-top: 1px solid #e8e5de !important;
+}
 
 /* ── Nav radio — 4 rules only ──
    Rule 1: hide the radio circle (the <div> Streamlit draws around it)
@@ -318,9 +320,7 @@ hr { border: none; border-top: 1px solid #e8e5de; margin: 24px 0; }
 """, unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════════
 #  CONSTANTS
-# ═══════════════════════════════════════════════════════════
 FEATURES = ['energy_per_capita','gdp','population',
             'coal_co2','oil_co2','gas_co2','methane']
 FEAT_LABELS = {
@@ -344,10 +344,12 @@ FEAT_COLORS = {
 LEVEL_COLORS = {'High':'#c0392b','Medium':'#d4860a','Low':'#1e7c45','N/A':'#aaa'}
 BINS = (2.05, 28.76)
 
+AI_MODEL = "gemini-2.5-flash"
+AI_MODEL     = "gemini-2.5-flash"
+MAX_REQUESTS = 5      
+COOLDOWN     = 30  
 
-# ═══════════════════════════════════════════════════════════
 #  DATA LOADING
-# ═══════════════════════════════════════════════════════════
 @st.cache_data
 def load_data():
     url = "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv"
@@ -391,9 +393,7 @@ def load_models():
     return dt, rf
 
 
-# ═══════════════════════════════════════════════════════════
 #  HELPERS
-# ═══════════════════════════════════════════════════════════
 def ipcc_label(co2_total, population):
     if population and population > 0 and not pd.isna(co2_total) and co2_total > 0:
         pc = (co2_total * 1e6) / population
@@ -433,60 +433,72 @@ def light_chart():
     ax.grid(axis='both', color='#eeebe6', lw=0.6, linestyle='--')
     return fig, ax
 
+#LIMITER FOR AI REQUESTS
+def init_rate_limiter():
+    """Set up counters in session state on first load."""
+    if 'ai_count' not in st.session_state:
+        st.session_state.ai_count = 0
+    if 'ai_last_time' not in st.session_state:
+        st.session_state.ai_last_time = 0
 
-# ═══════════════════════════════════════════════════════════
+def check_rate_limit():
+    """Returns (allowed=True/False, message)."""
+    init_rate_limiter()
+    now = time.time()
+    if st.session_state.ai_count >= MAX_REQUESTS:
+        return False, f"You have used all {MAX_REQUESTS} AI requests this session. Refresh the page to reset."
+    elapsed = now - st.session_state.ai_last_time
+    if elapsed < COOLDOWN and st.session_state.ai_count > 0:
+        wait = int(COOLDOWN - elapsed)
+        return False, f"Please wait {wait} more seconds before generating again."
+    return True, ""
+
+def record_request():
+    """Call after every successful AI call."""
+    st.session_state.ai_count += 1
+    st.session_state.ai_last_time = time.time()
+    
 #  AI CONTEXT 
-# ═══════════════════════════════════════════════════════════
-def get_ai_context(country, level, ipcc_lvl, co2_val, gdp_val,
-                   population, dominant_fuel, api_key):
-    """
-    Calls Claude to generate economic and policy context.
-    This is the AI section — it gives broader real-world insight
-    beyond what the ML model alone can tell you.
-    """
-    client = anthropic.Anthropic(api_key=api_key)
+def get_ai_context(country, level, ipcc_lvl, co2_val,
+                   gdp_val, population, dominant_fuel):
+    # Configure Gemini with your key from secrets.toml
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-    prompt = f"""You are a senior climate economist and policy advisor writing for a data journalism platform similar to Our World in Data.
+    # Load the model
+    model = genai.GenerativeModel(AI_MODEL)
 
-Analyze {country}'s emissions profile and write a structured, factual, insightful context report.
+    prompt = f"""You are a senior climate economist writing for a data journalism platform.
+
+Analyse {country}'s CO₂ emission profile and write a concise structured report.
 
 Data:
-- Total CO₂: {co2_val:.1f} million tonnes/year
-- ML model classification: {level} emitter (relative to all countries)
-- IPCC per-capita standard: {ipcc_lvl}
-- GDP: {fmt(gdp_val)} USD
-- Population: {fmt(population)}
-- Primary emission source: {dominant_fuel}
+- Total CO₂         : {co2_val:.1f} million tonnes/year
+- ML classification : {level} emitter
+- IPCC standard     : {ipcc_lvl}
+- GDP               : {fmt(gdp_val)} USD
+- Population        : {fmt(population)}
+- Primary source    : {dominant_fuel}
 
 Write exactly 4 short sections:
+**Economic Context** (2-3 sentences): Why does this country emit at this level?
+**Policy Landscape** (2-3 sentences): What transitions are realistic here?
+**Global Comparison** (2 sentences): How does it compare to regional peers?
+**Key Risk or Opportunity** (2 sentences): Most important factor next 10 years.
 
-**Economic Context** (2-3 sentences): What does this country's GDP and development level tell us about WHY it emits at this level? Connect economic development to emissions.
+Be specific to {country}. No generic statements."""
 
-**Policy Landscape** (2-3 sentences): What energy transition policies are realistic given this country's economic position? What has the country done or should do?
-
-**Global Comparison** (2 sentences): How does this country compare to similar economies or regional peers? Is it performing better or worse than expected?
-
-**Key Risk or Opportunity** (2 sentences): What is the single most important climate-economic risk or opportunity this country faces in the next 10 years?
-
-Keep each section concise, factual, and data-informed. Avoid generic statements. Be specific to {country}."""
-
-    msg = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=600,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return msg.content[0].text
+    response = model.generate_content(prompt)
+    return response.text
 
 
-# ═══════════════════════════════════════════════════════════
+
 #  LOAD
-# ═══════════════════════════════════════════════════════════
 with st.spinner("Loading data..."):
     df_filled, latest, history = load_data()
 
 try:
     dt_model, rf_model = load_models()
-    models_ok = True
+    models_ok =   True
     feat_imp  = sorted(zip(FEATURES, rf_model.feature_importances_),
                        key=lambda x: -x[1])
 except Exception as e:
@@ -494,9 +506,7 @@ except Exception as e:
     feat_imp  = []
 
 
-# ═══════════════════════════════════════════════════════════
 #  SIDEBAR
-# ═══════════════════════════════════════════════════════════
 with st.sidebar:
 
     st.markdown("""
@@ -511,25 +521,13 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
-    st.markdown("<div class='nav-divider'></div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class='sidebar-footer'>
+      <p style='margin:0 0 8px 0;font-size:11px;color:#888'><strong>Purpose:</strong> Academic research project</p>
+      <p style='margin:0;font-size:11px;color:#888'>Data sourced from <a href='https://ourworldindata.org/' target='_blank' style='color:#2980b9;text-decoration:none'>Our World in Data</a></p>
+    </div>""", unsafe_allow_html=True)
 
-    st.markdown("<div class='nav-api-label'>Anthropic API Key</div>",
-                unsafe_allow_html=True)
-    api_key = st.text_input("", type="password",
-                            placeholder="sk-ant-...",
-                            label_visibility="collapsed",
-                            help="Required for AI economic & policy context")
-    if api_key:
-        st.markdown("<div style='font-size:12px;color:#1e7c45;padding:2px'>✓ API key set — AI enabled</div>",
-                    unsafe_allow_html=True)
-    else:
-        st.markdown("<div style='font-size:12px;color:#888;padding:2px'>Enter key to enable AI context</div>",
-                    unsafe_allow_html=True)
-
-
-# ═══════════════════════════════════════════════════════════
 #  HERO BANNER  (shown on all pages)
-# ═══════════════════════════════════════════════════════════
 total_high   = len(latest[latest['co2_level']=='High'])
 total_medium = len(latest[latest['co2_level']=='Medium'])
 total_low    = len(latest[latest['co2_level']=='Low'])
@@ -565,9 +563,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════════
 #  PAGE 1 — COUNTRY PROFILE/DASHBOARD
-# ═══════════════════════════════════════════════════════════
 if "Dashboard" in page:
 
     # ── SECTION HEADER + learn box ──
@@ -585,7 +581,7 @@ if "Dashboard" in page:
                            if "Indonesia" in countries else 0)
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
-        run_ai = st.button("Search With Advisory")
+        run_ai = st.button("✦ Generate Context")
 
     row  = latest[latest['country'] == sel].iloc[0]
     co2  = row.get('co2', 0) or 0
@@ -632,7 +628,7 @@ if "Dashboard" in page:
 
         st.markdown("""
         <div class='learn-box' style='font-size:12px'>
-          <strong>Why these 4?</strong> These metrics together explain
+          <strong>The Key : </strong> These metrics together explain
           the <em>scale</em> (population, GDP) and <em>intensity</em>
           (CO₂ total, energy per capita) of emissions.
           A country with high GDP but low CO₂ is decoupling growth from emissions — a key policy goal.
@@ -662,7 +658,7 @@ if "Dashboard" in page:
 
         st.markdown("""
         <div class='learn-box' style='font-size:12px'>
-          <strong>ML vs IPCC:</strong> The ML label ranks countries
+          <strong>ML vs IPCC :</strong> The ML label ranks countries
           relative to each other (bottom/middle/top 33%). The IPCC label
           uses a fixed per-capita threshold rooted in climate science.
           They can disagree — a large country may be ML-High but IPCC-Medium if its population is huge.
@@ -720,6 +716,14 @@ if "Dashboard" in page:
         <div class='section-head' style='margin-top:14px'>
           <h3>Emission Sources</h3>
           <p>CO₂ by fuel type (million tonnes)</p>
+        </div>""", unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class='learn-box' style='font-size:12px'>
+          <strong>Source For Emission</strong> shows which variables the Random Forest
+          relied on most to make its classification. Oil CO₂ ranks #1 (39.8%) —
+          meaning oil usage is the strongest single predictor of a country's emission category globally.
+          This is <em>global importance</em>, not specific to this country.
         </div>""", unsafe_allow_html=True)
 
         sources = {
@@ -781,7 +785,7 @@ if "Dashboard" in page:
 
         st.markdown("""
         <div class='learn-box' style='font-size:12px'>
-          <strong>How this is generated:</strong> The policy recommendation
+          <strong>Policy Recomendation:</strong> The policy recommendation
           is rule-based — it reads the ML level and identifies the dominant
           fuel source, then returns targeted actions specific to that combination.
           The AI context section below gives broader economic reasoning.
@@ -791,34 +795,34 @@ if "Dashboard" in page:
         if rf_pred == 'Low':
             policy_html = (
                 f"<strong>Situation:</strong> Below 2.05 Mt/year — primary source is {dom_label}.<br><br>"
-                "✅ Maintain current energy standards and efficiency programs<br>"
-                "✅ Invest early in renewables to prevent future lock-in<br>"
-                "✅ Apply for climate finance as a low-emitter nation<br>"
-                "✅ Build national monitoring infrastructure proactively<br><br>"
-                "⚡ <strong>Quick win:</strong> National LED + building energy codes<br>"
-                "🎯 <strong>Long-term:</strong> EV transition before fossil dependency deepens"
+                "Maintain current energy standards and efficiency programs,<br>"
+                "Invest early in renewables to prevent future lock-in,<br>"
+                "Apply for climate finance as a low-emitter nation,<br>"
+                "Build national monitoring infrastructure proactively<br><br>"
+                "<strong>Quick win:</strong> National LED + building energy codes<br>"
+                "<strong>Long-term:</strong> EV transition before fossil dependency deepens"
             )
         elif rf_pred == 'Medium':
             policy_html = (
                 f"<strong>Situation:</strong> 2.05–28.76 Mt/year — primary source is {dom_label}. "
                 "Critical zone: highest risk of crossing into High.<br><br>"
-                f"✅ Implement carbon pricing targeting {dom_label} industry<br>"
-                f"✅ Phase out {dom_label} subsidies — redirect to renewables<br>"
-                "✅ Set national net-zero target with 5-year milestones<br>"
-                "✅ Mandate 30% renewable capacity increase within 5 years<br><br>"
-                "⚡ <strong>Quick win:</strong> Fuel efficiency standards for all vehicles<br>"
-                "🎯 <strong>Long-term:</strong> 50%+ renewable electricity grid by 2035"
+                f"Implement carbon pricing targeting {dom_label} industry,<br>"
+                f"Phase out {dom_label} subsidies — redirect to renewables,<br>"
+                "Set national net-zero target with 5-year milestones,<br>"
+                "Mandate 30% renewable capacity increase within 5 years<br><br>"
+                "<strong>Quick win:</strong> Fuel efficiency standards for all vehicles<br>"
+                "<strong>Long-term:</strong> 50%+ renewable electricity grid by 2035"
             )
         else:
             policy_html = (
                 f"<strong>Situation:</strong> Above 28.76 Mt/year — primary source is {dom_label}. "
                 "Urgent structural action required.<br><br>"
-                f"🚨 Immediate carbon tax on {dom_label} sector<br>"
-                f"🚨 Hard annual emissions cap with legal enforcement<br>"
-                f"🚨 Close or retrofit oldest {dom_label} plants within 3 years<br>"
-                "🚨 Massive public investment in grid-scale renewables and storage<br><br>"
-                f"⚡ <strong>Quick win:</strong> Ban all new {dom_label} infrastructure permits<br>"
-                f"🎯 <strong>Long-term:</strong> Full {dom_label} decarbonisation by 2040"
+                f"Immediate carbon tax on {dom_label} sector,<br>"
+                f"Hard annual emissions cap with legal enforcement,<br>"
+                f"Close or retrofit oldest {dom_label} plants within 3 years,<br>"
+                "Massive public investment in grid-scale renewables and storage<br><br>"
+                f"<strong>Quick win:</strong> Ban all new {dom_label} infrastructure permits<br>"
+                f"<strong>Long-term:</strong> Full {dom_label} decarbonisation by 2040"
             )
 
         lvl_cls = rf_pred.lower()
@@ -832,12 +836,12 @@ if "Dashboard" in page:
     st.markdown("""
     <div class='section-head'>
       <h3>AI Economic & Policy Context</h3>
-      <p>Broader economic reasoning generated by Claude AI — goes beyond what the ML model alone can tell you</p>
+      <p>Broader economic reasoning generated by AI</p>
     </div>""", unsafe_allow_html=True)
-
+    
+    
     st.markdown("""
     <div class='learn-box'>
-      <span class='learn-icon'>🤖</span>
       <strong>What the AI adds:</strong> The ML model classifies countries based on numerical patterns
       in the training data. It does not know <em>why</em> a country emits at that level,
       what its economic constraints are, or how it compares to regional peers.
@@ -845,38 +849,70 @@ if "Dashboard" in page:
       policy landscape analysis, global comparisons, and key risk/opportunity identification
       specific to each country's real-world situation.
     </div>""", unsafe_allow_html=True)
+    
 
     if run_ai:
-        if not api_key:
-            st.warning("Please enter your Anthropic API key in the sidebar to generate AI context.")
-        else:
-            with st.spinner(f"Generating AI economic context for {sel}..."):
-                try:
-                    ai_text = get_ai_context(
-                        sel, rf_pred, ipcc_lvl, co2, gdp,
-                        pop, dom_label, api_key
-                    )
-                    st.session_state[f'ai_{sel}'] = ai_text
-                except Exception as e:
-                    st.error(f"API error: {e}")
+      allowed, msg = check_rate_limit()
+      if not allowed:
+          st.markdown(f"""
+          <div style='background:#fef3e2;border:1px solid #f5dba0;
+                      border-left:4px solid #d4860a;
+                      border-radius:0 8px 8px 0;
+                      padding:12px 16px;font-size:13px;color:#8a5500'>
+             <strong>Rate limit:</strong> {msg}
+          </div>""", unsafe_allow_html=True)
+      else:
+          with st.spinner(f"Generating AI context for {sel}..."):
+              try:
+                  ai_text = get_ai_context(
+                      sel, rf_pred, ipcc_lvl, co2, gdp, pop, dom_label
+                  )                                    
+                  st.session_state[f'ai_{sel}'] = ai_text
+                  record_request()                     
+              except Exception as e:
+                  st.error(f"AI error: {e}")
 
     if f'ai_{sel}' in st.session_state:
         ai_content = st.session_state[f'ai_{sel}']
         # render markdown cleanly
         st.markdown(f"""
         <div class='ai-box'>
-          <div class='ai-box-header'>✦ AI Analysis — {sel}</div>
+          <div class='ai-box-header'>AI Analysis — {sel}</div>
           {ai_content.replace(chr(10), '<br>').replace('**','<strong>').replace('**','</strong>')}
         </div>""", unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class='ai-box' style='color:#aaa;font-style:italic'>
           <div class='ai-box-header' style='color:#c8a060'>✦ AI Analysis — {sel}</div>
-          Click <strong style='color:#d4860a'>✨ Generate AI Context</strong> above to get
+          Click <strong style='color:#d4860a'>Generate AI Context</strong> above to get
           Claude's economic and policy analysis for {sel} — including economic context,
           policy landscape, global comparisons, and key risks/opportunities.
         </div>""", unsafe_allow_html=True)
 
+    # Show AI usage tracker
+    init_rate_limiter()
+    used     = st.session_state.ai_count
+    bar_pct  = (used / MAX_REQUESTS * 100) if MAX_REQUESTS > 0 else 0
+    bar_clr  = "#c0392b" if used >= MAX_REQUESTS else "#1e7c45"
+
+    st.markdown(f"""
+    <div style='font-size:12px;color:#555;background:#f9f7f2;
+                border:1px solid #e8e5de;border-radius:6px;
+                padding:12px 16px;margin-top:8px'>
+      <div style='font-weight:600;color:#1a1a1a;margin-bottom:8px'>
+        ✦ AI Analysis Usage
+      </div>
+      <div style='background:#e8e5de;border-radius:3px;height:5px;margin-bottom:8px'>
+        <div style='width:{bar_pct:.0f}%;height:100%;
+                    background:{bar_clr};border-radius:3px'></div>
+      </div>
+      <div style='font-size:12px;margin-bottom:4px'>{used} / {MAX_REQUESTS} requests used this session</div>
+      <div style='color:#aaa;font-size:11px'>
+        Note: This is a demonstration of AI integration. The analysis is generated by a language model and should be critically evaluated. It may not reflect the full complexity of {sel}'s economic and policy context.
+      </div>
+    </div>""", unsafe_allow_html=True)
+
+    
     # ── Historical trend ──
     st.divider()
     st.markdown("""
@@ -885,13 +921,6 @@ if "Dashboard" in page:
       <p>How this country's total emissions have changed over time</p>
     </div>""", unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class='learn-box' style='font-size:12px'>
-      <strong>Reading this chart:</strong> The dashed lines show the ML model's
-      Low/Medium and Medium/High thresholds (2.05 Mt and 28.76 Mt).
-      If the country's line crosses a threshold, it has shifted emission categories.
-      Rising trend = growing fossil fuel dependency. Falling trend = successful decarbonisation.
-    </div>""", unsafe_allow_html=True)
 
     hist = history[history['country']==sel][['year','co2']].dropna()
     if len(hist) > 1:
@@ -915,9 +944,7 @@ if "Dashboard" in page:
         st.markdown(f"<div class='source-tag'>Source: Our World in Data · CO₂ and Greenhouse Gas Emissions dataset</div>", unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════════
 #  PAGE 2 — COUNTRY RANKINGS
-# ═══════════════════════════════════════════════════════════
 elif "Country Rankings" in page:
 
     st.markdown("""
@@ -1009,9 +1036,7 @@ elif "Country Rankings" in page:
         st.info("No disagreements in current filter selection.")
 
 
-# ═══════════════════════════════════════════════════════════
 #  PAGE 3 — GLOBAL CHARTS
-# ═══════════════════════════════════════════════════════════
 elif "Global Charts" in page:
 
     st.markdown("""
@@ -1158,9 +1183,7 @@ elif "Global Charts" in page:
     st.markdown("<div class='source-tag'>Source: Our World in Data · CO₂ and Greenhouse Gas Emissions dataset</div>", unsafe_allow_html=True)
 
 
-# ═══════════════════════════════════════════════════════════
 #  PAGE 4 — ABOUT
-# ═══════════════════════════════════════════════════════════
 elif "About" in page:
 
     st.markdown("""
@@ -1336,7 +1359,7 @@ elif "About" in page:
         <div class='metric-card'>
           <div class='metric-label'>Train / test split</div>
           <p style='font-size:13px;color:#333;line-height:1.8;margin:8px 0'>
-            85% train+val · 15% test · stratified to preserve class ratios in both sets.
+            80% train+val · 20% test · stratified to preserve class ratios in both sets.
           </p>
         </div>
 
