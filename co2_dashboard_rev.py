@@ -13,7 +13,7 @@ import joblib
 import anthropic
 
 # ═══════════════════════════════════════════════════════════
-#  PAGE CONFIG  ← always first Streamlit call
+#  PAGE CONFIG 
 # ═══════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="CO₂ Policy Intelligence",
@@ -24,8 +24,6 @@ st.set_page_config(
 
 # ═══════════════════════════════════════════════════════════
 #  DESIGN SYSTEM
-#  Inspired by Our World in Data: clean editorial light theme,
-#  Playfair Display headlines, clean sans body, accent coral/teal
 # ═══════════════════════════════════════════════════════════
 st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -437,7 +435,7 @@ def light_chart():
 
 
 # ═══════════════════════════════════════════════════════════
-#  AI CONTEXT (Claude API)
+#  AI CONTEXT 
 # ═══════════════════════════════════════════════════════════
 def get_ai_context(country, level, ipcc_lvl, co2_val, gdp_val,
                    population, dominant_fuel, api_key):
