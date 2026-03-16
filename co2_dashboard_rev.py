@@ -720,10 +720,7 @@ if "Dashboard" in page:
         
         st.markdown("""
         <div class='learn-box' style='font-size:12px'>
-          <strong>Source For Emission</strong> shows which variables the Random Forest
-          relied on most to make its classification. Oil CO₂ ranks #1 (39.8%) —
-          meaning oil usage is the strongest single predictor of a country's emission category globally.
-          This is <em>global importance</em>, not specific to this country.
+          <strong>Source For Emission</strong> shows source emission data for the country selected.
         </div>""", unsafe_allow_html=True)
 
         sources = {
