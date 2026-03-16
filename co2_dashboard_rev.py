@@ -585,7 +585,7 @@ if "Dashboard" in page:
                            if "Indonesia" in countries else 0)
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
-        run_ai = st.button("Search")
+        run_ai = st.button("Search With Advisory")
 
     row  = latest[latest['country'] == sel].iloc[0]
     co2  = row.get('co2', 0) or 0
@@ -1137,30 +1137,7 @@ elif "Global Charts" in page:
     st.markdown("<div class='source-tag'>Remaining CO₂ (not shown) = other fossil sources · Source: Our World in Data</div>", unsafe_allow_html=True)
     st.divider()
 
-    # ── Chart 5: Per capita top 20 ──
-    st.markdown("""
-    <div class='section-head'>
-      <h3>Top 20 Countries — CO₂ Per Capita (IPCC View)</h3>
-      <p>Per-person emissions reveal countries with high individual carbon footprints regardless of country size</p>
-    </div>""", unsafe_allow_html=True)
-
-    top20pc = adf.nlargest(20,'co2_pc').sort_values('co2_pc')
-    fig, ax  = mk_ax((12,7))
-    pc_clrs  = [LEVEL_COLORS.get(l,'#888') for l in top20pc['ipcc_level']]
-    ax.barh(top20pc['country'], top20pc['co2_pc'],
-            color=pc_clrs, edgecolor='white', lw=0.5, height=0.65)
-    ax.axvline(3,  color='#d4860a', lw=1.2, ls='--', alpha=0.7)
-    ax.axvline(10, color='#c0392b', lw=1.2, ls='--', alpha=0.7)
-    ax.text(3.2,  0.3, 'Low / Medium\nboundary (3t)', color='#d4860a', fontsize=8.5)
-    ax.text(10.2, 0.3, 'Medium / High\nboundary (10t)',color='#c0392b', fontsize=8.5)
-    ax.set_xlabel('tonnes CO₂ per person per year', color=TICK, fontsize=11)
-    patches2 = [mpatches.Patch(color=LEVEL_COLORS[l],label=l) for l in ['High','Medium','Low']]
-    ax.legend(handles=patches2, fontsize=10, framealpha=0.9, facecolor=BG, edgecolor='#ddd')
-    plt.tight_layout(); st.pyplot(fig); plt.close()
-    st.markdown("<div class='source-tag'>IPCC thresholds: 3t = Paris-compatible ceiling · 10t = 2000 global average for developed nations</div>", unsafe_allow_html=True)
-    st.divider()
-
-    # ── Chart 6: Historical top 5 trend ──
+    # ── Chart 5: Historical top 5 trend ──
     st.markdown("""
     <div class='section-head'>
       <h3>Historical Trend — Top 5 Emitters (1990–2024)</h3>
