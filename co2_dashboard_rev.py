@@ -639,7 +639,7 @@ if "Dashboard" in page:
              <strong>Rate limit:</strong> {msg}
           </div>""", unsafe_allow_html=True)
       else:
-          with st.spinner(f"Generating AI context for {sel}..."):
+          with st.spinner(f" Analyze with AI for {sel}..."):
               try:
                   ai_text = get_ai_context(
                       sel, rf_pred, ipcc_lvl, co2, gdp, pop, dom_label
