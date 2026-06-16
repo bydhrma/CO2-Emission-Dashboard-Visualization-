@@ -479,11 +479,13 @@ Data:
 - Population        : {fmt(population)}
 - Primary source    : {dominant_fuel}
 
-Write exactly 4 short sections:
+Write exactly this sections and don't use generic statements that could apply to any country. Be specific to {country}'s context:
 **Economic Context** (2-3 sentences): Why does this country emit at this level?
-**Policy Landscape** (2-3 sentences): What transitions are realistic here?
+**Policy Landscape** (2-3 sentences): What transitions are realistic here and can be solved with policy?
 **Global Comparison** (2 sentences): How does it compare to regional peers?
-**Key Risk or Opportunity** (2 sentences): Most important factor next 10 years.
+**Key Risk or Opportunity** (2 sentences): Most important factor next 5-10 years and solution for the country.
+**Actionable task for Citizen** (2-3 sentences): What can an average citizen do to help reduce emissions in this country?
+**Citizen Health** (2-3 sentences): What are the citizen can do to protect themselves from the health impacts of pollution in this country?
 
 Be specific to {country}. No generic statements."""
 
@@ -512,7 +514,7 @@ with st.sidebar:
     st.markdown("""
     <div class='sidebar-logo'>CO₂ Policy<span> Intelligence</span></div>
     <p style='font-size:12px;color:#888;margin:6px 0 16px;padding:0'>
-      Global emissions · ML · AI advisory
+      Global emissions
     </p>""", unsafe_allow_html=True)
 
     page = st.radio(
@@ -581,7 +583,7 @@ if "Dashboard" in page:
                            if "Indonesia" in countries else 0)
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
-        run_ai = st.button("✦ Generate Context")
+        run_ai = st.button("Analyze with AI", type="primary")
 
     row  = latest[latest['country'] == sel].iloc[0]
     co2  = row.get('co2', 0) or 0
@@ -606,246 +608,24 @@ if "Dashboard" in page:
     # ── Country headline ──
     hc1, hc2, hc3 = st.columns([2,1,1])
     with hc1:
-        st.markdown(f"<h2 style='font-family:Playfair Display,serif;font-size:32px;margin-bottom:4px'>{sel}</h2>", unsafe_allow_html=True)
-        st.markdown(f"<p style='color:#888;font-size:13px'>Latest data: {yr} &nbsp;·&nbsp; Total CO₂: <strong style='color:#1a1a1a'>{co2:.2f} Mt/year</strong> &nbsp;·&nbsp; Primary source: <strong style='color:#1a1a1a'>{dom_label}</strong></p>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='font-family:Playfair Display,serif;font-size:32px;margin-bottom:0'>{sel}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color:#888;font-size:13px;margin-top:2px'>Latest data: {yr} &nbsp;·&nbsp; Total CO₂: <strong style='color:#1a1a1a'>{co2:.2f} Mt/year</strong> &nbsp;·&nbsp; Primary source: <strong style='color:#1a1a1a'>{dom_label}</strong></p>", unsafe_allow_html=True)
     with hc2:
-        st.markdown(f"<div style='text-align:center;padding-top:8px'><div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px'>ML Classification</div>{badge(rf_pred)}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center;padding-top:24px'><div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px'>ML Classification</div>{badge(rf_pred)}</div>", unsafe_allow_html=True)
     with hc3:
-        st.markdown(f"<div style='text-align:center;padding-top:8px'><div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px'>IPCC Standard</div>{badge(ipcc_lvl)}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center;padding-top:24px'><div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px'>IPCC Standard</div>{badge(ipcc_lvl)}</div>", unsafe_allow_html=True)
 
     st.divider()
-
-    # ── 3 column layout ──
-    col1, col2, col3 = st.columns([1, 1, 1.1])
-
-    # ── COL 1: Key metrics ──
-    with col1:
-        st.markdown("""
-        <div class='section-head'>
-          <h3>Key Metrics</h3>
-          <p>Core economic and emissions indicators</p>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class='learn-box' style='font-size:12px'>
-          <strong>The Key : </strong> These metrics together explain
-          the <em>scale</em> (population, GDP) and <em>intensity</em>
-          (CO₂ total, energy per capita) of emissions.
-          A country with high GDP but low CO₂ is decoupling growth from emissions — a key policy goal.
-        </div>""", unsafe_allow_html=True)
-
-        for label, key, unit in [
-            ("Total CO₂",         'co2',               "million tonnes / year"),
-            ("GDP",               'gdp',               "USD (current prices)"),
-            ("Population",        'population',        "people"),
-            ("Energy per capita", 'energy_per_capita', "kWh per person / year"),
-        ]:
-            val = row.get(key)
-            st.markdown(f"""
-            <div class='metric-card'>
-              <div class='metric-label'>{label}</div>
-              <div class='metric-value'>{fmt(val)}</div>
-              <div class='metric-unit'>{unit}</div>
-            </div>""", unsafe_allow_html=True)
-
-    # ── COL 2: Classification + emissions breakdown ──
-    with col2:
-        st.markdown("""
-        <div class='section-head'>
-          <h3>Classification</h3>
-          <p>ML model vs IPCC global standard</p>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class='learn-box' style='font-size:12px'>
-          <strong>ML vs IPCC :</strong> The ML label ranks countries
-          relative to each other (bottom/middle/top 33%). The IPCC label
-          uses a fixed per-capita threshold rooted in climate science.
-          They can disagree — a large country may be ML-High but IPCC-Medium if its population is huge.
-        </div>""", unsafe_allow_html=True)
-
-        # classification comparison
-        st.markdown(f"""
-        <div class='compare-row'>
-          <div class='compare-half'>
-            <div class='compare-half-label'>Random Forest</div>
-            <div class='compare-half-name'>Relative ranking</div>
-            {badge(rf_pred)}
-          </div>
-          <div class='compare-half'>
-            <div class='compare-half-label'>Decision Tree</div>
-            <div class='compare-half-name'>Interpretable rules</div>
-            {badge(dt_pred)}
-          </div>
-        </div>
-        <div class='metric-card' style='margin-bottom:14px'>
-          <div class='metric-label'>IPCC Global Standard (per capita)</div>
-          <div style='margin-top:4px'>{badge(ipcc_lvl)}</div>
-          <div class='metric-unit' style='margin-top:6px'>{ipcc_desc}</div>
-        </div>""", unsafe_allow_html=True)
-
-        # RF Confidence
-        st.markdown("""
-        <div class='section-head' style='margin-top:4px'>
-          <h3>Model Confidence</h3>
-          <p>Probability assigned by Random Forest</p>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class='learn-box' style='font-size:12px'>
-          <strong>Confidence bars:</strong> How certain the RF model is.
-          Values near 100% mean the country's features clearly belong to one class.
-          Values near 50/50 mean the country sits near a boundary — genuinely ambiguous.
-        </div>""", unsafe_allow_html=True)
-
-        for cls in ['Low','Medium','High']:
-            prob = rf_prob.get(cls, 0)
-            clr  = LEVEL_COLORS.get(cls, '#888')
-            op   = 1.0 if cls == rf_pred else 0.25
-            st.markdown(f"""
-            <div class='conf-row'>
-              <span class='conf-label'>{cls}</span>
-              <div class='conf-bg'>
-                <div style='width:{prob*100:.1f}%;height:100%;background:{clr};opacity:{op};border-radius:2px'></div>
-              </div>
-              <span class='conf-val'>{prob*100:.1f}%</span>
-            </div>""", unsafe_allow_html=True)
-
-        # Emission sources
-        st.markdown("""
-        <div class='section-head' style='margin-top:14px'>
-          <h3>Emission Sources</h3>
-          <p>CO₂ by fuel type (million tonnes)</p>
-        </div>""", unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class='learn-box' style='font-size:12px'>
-          <strong>Source For Emission</strong> shows source emission data for the country selected.
-        </div>""", unsafe_allow_html=True)
-
-        sources = {
-            'Coal':   row.get('coal_co2',0) or 0,
-            'Oil':    row.get('oil_co2',0)  or 0,
-            'Gas':    row.get('gas_co2',0)  or 0,
-            'Methane':row.get('methane',0)  or 0,
-        }
-        src_clr = {'Coal':'#c0392b','Oil':'#e67e22','Gas':'#f39c12','Methane':'#8e44ad'}
-        mx = max(sources.values()) if max(sources.values()) > 0 else 1
-        for src, val in sources.items():
-            pct = val / mx * 100
-            st.markdown(f"""
-            <div class='feat-row'>
-              <span class='feat-name'>{src}</span>
-              <div class='feat-bg'>
-                <div style='width:{pct:.1f}%;height:100%;background:{src_clr[src]};border-radius:2px'></div>
-              </div>
-              <span class='feat-val'>{val:.1f}</span>
-            </div>""", unsafe_allow_html=True)
-
-    # ── COL 3: Feature importance + policy ──
-    with col3:
-        st.markdown("""
-        <div class='section-head'>
-          <h3>Feature Importance Ranking</h3>
-          <p>Which inputs drive the RF model most</p>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class='learn-box' style='font-size:12px'>
-          <strong>Feature importance</strong> shows which variables the Random Forest
-          relied on most to make its classification. Oil CO₂ ranks #1 (39.8%) —
-          meaning oil usage is the strongest single predictor of a country's emission category globally.
-          This is <em>global importance</em>, not specific to this country.
-        </div>""", unsafe_allow_html=True)
-
-        if models_ok:
-            max_imp = feat_imp[0][1]
-            for rank, (feat, imp_v) in enumerate(feat_imp, 1):
-                pct = imp_v / max_imp * 100
-                clr = FEAT_COLORS.get(feat,'#aaa')
-                st.markdown(f"""
-                <div class='feat-row'>
-                  <span class='feat-rank'>#{rank}</span>
-                  <span class='feat-name'>{FEAT_LABELS[feat]}</span>
-                  <div class='feat-bg'>
-                    <div style='width:{pct:.1f}%;height:100%;background:{clr};border-radius:2px'></div>
-                  </div>
-                  <span class='feat-val'>{imp_v:.3f}</span>
-                </div>""", unsafe_allow_html=True)
-
-        # Policy recommendation
-        st.markdown("""
-        <div class='section-head' style='margin-top:16px'>
-          <h3>Policy Recommendation</h3>
-          <p>Targeted actions based on emission profile</p>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class='learn-box' style='font-size:12px'>
-          <strong>Policy Recomendation:</strong> The policy recommendation
-          is rule-based — it reads the ML level and identifies the dominant
-          fuel source, then returns targeted actions specific to that combination.
-          The AI context section below gives broader economic reasoning.
-        </div>""", unsafe_allow_html=True)
-
-        dom_fuel_val = row.get(dom_fuel, 0) or 0
-        if rf_pred == 'Low':
-            policy_html = (
-                f"<strong>Situation:</strong> Below 2.05 Mt/year — primary source is {dom_label}.<br><br>"
-                "Maintain current energy standards and efficiency programs,<br>"
-                "Invest early in renewables to prevent future lock-in,<br>"
-                "Apply for climate finance as a low-emitter nation,<br>"
-                "Build national monitoring infrastructure proactively<br><br>"
-                "<strong>Quick win:</strong> National LED + building energy codes<br>"
-                "<strong>Long-term:</strong> EV transition before fossil dependency deepens"
-            )
-        elif rf_pred == 'Medium':
-            policy_html = (
-                f"<strong>Situation:</strong> 2.05–28.76 Mt/year — primary source is {dom_label}. "
-                "Critical zone: highest risk of crossing into High.<br><br>"
-                f"Implement carbon pricing targeting {dom_label} industry,<br>"
-                f"Phase out {dom_label} subsidies — redirect to renewables,<br>"
-                "Set national net-zero target with 5-year milestones,<br>"
-                "Mandate 30% renewable capacity increase within 5 years<br><br>"
-                "<strong>Quick win:</strong> Fuel efficiency standards for all vehicles<br>"
-                "<strong>Long-term:</strong> 50%+ renewable electricity grid by 2035"
-            )
-        else:
-            policy_html = (
-                f"<strong>Situation:</strong> Above 28.76 Mt/year — primary source is {dom_label}. "
-                "Urgent structural action required.<br><br>"
-                f"Immediate carbon tax on {dom_label} sector,<br>"
-                f"Hard annual emissions cap with legal enforcement,<br>"
-                f"Close or retrofit oldest {dom_label} plants within 3 years,<br>"
-                "Massive public investment in grid-scale renewables and storage<br><br>"
-                f"<strong>Quick win:</strong> Ban all new {dom_label} infrastructure permits<br>"
-                f"<strong>Long-term:</strong> Full {dom_label} decarbonisation by 2040"
-            )
-
-        lvl_cls = rf_pred.lower()
-        st.markdown(f"<div class='policy-card {lvl_cls}'>{policy_html}</div>",
-                    unsafe_allow_html=True)
 
     # ═══════════════════════════════
     #  AI ECONOMIC & POLICY CONTEXT
     # ═══════════════════════════════
-    st.divider()
     st.markdown("""
     <div class='section-head'>
       <h3>AI Economic & Policy Context</h3>
       <p>Broader economic reasoning generated by AI</p>
     </div>""", unsafe_allow_html=True)
     
-    
-    st.markdown("""
-    <div class='learn-box'>
-      <strong>What the AI adds:</strong> The ML model classifies countries based on numerical patterns
-      in the training data. It does not know <em>why</em> a country emits at that level,
-      what its economic constraints are, or how it compares to regional peers.
-      The AI context fills that gap — it uses Claude to generate economic reasoning,
-      policy landscape analysis, global comparisons, and key risk/opportunity identification
-      specific to each country's real-world situation.
-    </div>""", unsafe_allow_html=True)
     
 
     if run_ai:
@@ -874,15 +654,15 @@ if "Dashboard" in page:
         # render markdown cleanly
         st.markdown(f"""
         <div class='ai-box'>
-          <div class='ai-box-header'>AI Analysis — {sel}</div>
+          <div class='ai-box-header'>Analysis with AI— {sel}</div>
           {ai_content.replace(chr(10), '<br>').replace('**','<strong>').replace('**','</strong>')}
         </div>""", unsafe_allow_html=True)
     else:
         st.markdown(f"""
         <div class='ai-box' style='color:#aaa;font-style:italic'>
-          <div class='ai-box-header' style='color:#c8a060'>✦ AI Analysis — {sel}</div>
-          Click <strong style='color:#d4860a'>Generate AI Context</strong> above to get
-          Claude's economic and policy analysis for {sel} — including economic context,
+          <div class='ai-box-header' style='color:#c8a060'>Analysis — {sel}</div>
+          Click <strong style='color:#d4860a'>Analyze with AI</strong> above to get
+          economic and policy analysis for {sel} — including economic context,
           policy landscape, global comparisons, and key risks/opportunities.
         </div>""", unsafe_allow_html=True)
 
@@ -909,7 +689,107 @@ if "Dashboard" in page:
       </div>
     </div>""", unsafe_allow_html=True)
 
-    
+    st.divider()
+
+    # ── 2 column layout ──
+    col1, col2 = st.columns([1.2, 1])
+
+    # ── COL 1: Feature Importance ──
+    with col1:
+        st.markdown("""
+        <div class='section-head'>
+          <h3>Feature Importance Ranking</h3>
+          <p>Which inputs drive the RF model most</p>
+        </div>""", unsafe_allow_html=True)
+
+        if models_ok:
+            max_imp = feat_imp[0][1]
+            for rank, (feat, imp_v) in enumerate(feat_imp, 1):
+                pct = imp_v / max_imp * 100
+                clr = FEAT_COLORS.get(feat,'#aaa')
+                st.markdown(f"""
+                <div class='feat-row'>
+                  <span class='feat-rank'>#{rank}</span>
+                  <span class='feat-name'>{FEAT_LABELS[feat]}</span>
+                  <div class='feat-bg'>
+                    <div style='width:{pct:.1f}%;height:100%;background:{clr};border-radius:2px'></div>
+                  </div>
+                  <span class='feat-val'>{imp_v:.3f}</span>
+                </div>""", unsafe_allow_html=True)
+
+        # Classification comparison
+        st.markdown("""<div style='height:1px;background:#f0ede8;margin:16px 0'></div>""", unsafe_allow_html=True)
+        st.markdown("""
+        <div class='section-head' style='margin-top:0'>
+          <h3>Classification</h3>
+          <p>ML model vs IPCC global standard</p>
+        </div>""", unsafe_allow_html=True)
+
+        st.markdown(f"""
+        <div class='compare-row'>
+          <div class='compare-half'>
+            <div class='compare-half-label'>Random Forest</div>
+            <div class='compare-half-name'>Relative ranking</div>
+            {badge(rf_pred)}
+          </div>
+          <div class='compare-half'>
+            <div class='compare-half-label'>Decision Tree</div>
+            <div class='compare-half-name'>Interpretable rules</div>
+            {badge(dt_pred)}
+          </div>
+        </div>
+        <div class='metric-card' style='margin-bottom:14px'>
+          <div class='metric-label'>IPCC Global Standard (per capita)</div>
+          <div style='margin-top:4px'>{badge(ipcc_lvl)}</div>
+          <div class='metric-unit' style='margin-top:6px'>{ipcc_desc}</div>
+        </div>""", unsafe_allow_html=True)
+
+    # ── COL 2: Key metrics + Emission sources ──
+    with col2:
+        st.markdown("""
+        <div class='section-head'>
+          <h3>Key Metrics</h3>
+          <p>Core economic and emissions indicators</p>
+        </div>""", unsafe_allow_html=True)
+
+        for label, key, unit in [
+            ("Total CO₂",         'co2',               "million tonnes / year"),
+            ("GDP",               'gdp',               "USD (current prices)"),
+            ("Population",        'population',        "people"),
+            ("Energy per capita", 'energy_per_capita', "kWh per person / year"),
+        ]:
+            val = row.get(key)
+            st.markdown(f"""
+            <div class='metric-card'>
+              <div class='metric-label'>{label}</div>
+              <div class='metric-value'>{fmt(val)}</div>
+              <div class='metric-unit'>{unit}</div>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class='learn-box' style='font-size:12px'>
+         Shows source emission data for the country selected.
+        </div>""", unsafe_allow_html=True)
+
+        sources = {
+            'Coal':   row.get('coal_co2',0) or 0,
+            'Oil':    row.get('oil_co2',0)  or 0,
+            'Gas':    row.get('gas_co2',0)  or 0,
+            'Methane':row.get('methane',0)  or 0,
+        }
+        src_clr = {'Coal':'#c0392b','Oil':'#e67e22','Gas':'#f39c12','Methane':'#8e44ad'}
+        mx = max(sources.values()) if max(sources.values()) > 0 else 1
+        for src, val in sources.items():
+            pct = val / mx * 100
+            st.markdown(f"""
+            <div class='feat-row'>
+              <span class='feat-name'>{src}</span>
+              <div class='feat-bg'>
+                <div style='width:{pct:.1f}%;height:100%;background:{src_clr[src]};border-radius:2px'></div>
+              </div>
+              <span class='feat-val'>{val:.1f}</span>
+            </div>""", unsafe_allow_html=True)
+
     # ── Historical trend ──
     st.divider()
     st.markdown("""
@@ -1009,7 +889,7 @@ elif "Country Rankings" in page:
 
     show = ['Country','CO₂ (Mt)','ML Level','RF Conf.','IPCC Level','IPCC Detail','Coal','Oil','Gas','GDP','Population']
     styled = (tdf[show].style
-              .applymap(clr_level, subset=['ML Level','IPCC Level'])
+              .map(clr_level, subset=['ML Level','IPCC Level'])
               .format({'CO₂ (Mt)':'{:.2f}','Coal':'{:.1f}','Oil':'{:.1f}','Gas':'{:.1f}'}))
     st.dataframe(styled, use_container_width=True, hide_index=True, height=500)
     st.markdown("<div class='source-tag'>Sorted by total CO₂ descending · Source: Our World in Data</div>", unsafe_allow_html=True)
@@ -1027,7 +907,7 @@ elif "Country Rankings" in page:
         ['Country','CO₂ (Mt)','ML Level','IPCC Level','IPCC Detail']
     ].head(20)
     if len(dis):
-        st.dataframe(dis.style.applymap(clr_level, subset=['ML Level','IPCC Level']),
+        st.dataframe(dis.style.map(clr_level, subset=['ML Level','IPCC Level']),
                      use_container_width=True, hide_index=True)
     else:
         st.info("No disagreements in current filter selection.")
@@ -1035,13 +915,6 @@ elif "Country Rankings" in page:
 
 #  PAGE 3 — GLOBAL CHARTS
 elif "Global Charts" in page:
-
-    st.markdown("""
-    <div class='section-head'>
-      <h3>Global Emissions Charts</h3>
-      <p>Visualising CO₂ patterns across all 219 countries — by total emissions, per capita, fuel source, and ML classification.</p>
-    </div>""", unsafe_allow_html=True)
-
 
     # build all predictions
     all_out = []
@@ -1193,7 +1066,7 @@ elif "About" in page:
     col1, col2, col3 = st.columns([1.1, 1, 1])
 
     with col1:
-        m_status = "✅ Loaded" if models_ok else "❌ .pkl files not found"
+        m_status = "Loaded" if models_ok else "Error .pkl files not found"
         st.markdown(f"""
         <div class='metric-card'>
           <div class='metric-label'>ML Models</div>
