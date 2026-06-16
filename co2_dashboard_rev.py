@@ -1,5 +1,5 @@
 """
-CO₂ Policy Intelligence Dashboard
+CarbonIQ — CO₂ Emissions Intelligence Dashboard
 Professional editorial theme inspired by Our World in Data
 """
 import streamlit as st
@@ -14,7 +14,7 @@ import google.generativeai as genai
 
 #  PAGE CONFIG 
 st.set_page_config(
-    page_title="CO₂ Policy Intelligence",
+    page_title="CarbonIQ",
     page_icon="🌍",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -510,7 +510,7 @@ except Exception as e:
 with st.sidebar:
 
     st.markdown("""
-    <div class='sidebar-logo'>CO₂ Policy<span> Intelligence</span></div>
+    <div class='sidebar-logo'>Carbon<span>IQ</span></div>
     <p style='font-size:12px;color:#888;margin:6px 0 16px;padding:0'>
       Global emissions
     </p>""", unsafe_allow_html=True)
@@ -534,8 +534,8 @@ total_low    = len(latest[latest['co2_level']=='Low'])
 
 st.markdown(f"""
 <div class='hero'>
-  <div class='hero-label'>CO₂ Emissions Intelligence Platform</div>
-  <div class='hero-title'>Understanding global CO₂ emissions through data and machine learning</div>
+  <div class='hero-label'>CarbonIQ — CO₂ Emissions Intelligence Platform</div>
+  <div class='hero-title'>Classify and understand global CO₂ emissions through data and machine learning</div>
   <div class='hero-sub'>Track, classify and analyse the emission profiles of 219 countries using Random Forest and Decision Tree models trained on Our World in Data.</div>
   <div class='hero-stats'>
     <div>
@@ -574,14 +574,14 @@ if "Dashboard" in page:
     </div>""", unsafe_allow_html=True)
 
     countries = sorted(latest['country'].unique().tolist())
-    col_sel, col_btn = st.columns([3,1])
+    col_sel, col_btn = st.columns([5, 1], vertical_alignment="bottom")
     with col_sel:
         sel = st.selectbox("Select country", countries,
                            index=None,
-                           placeholder="Select the country")
+                           placeholder="Select the country",
+                           label_visibility="collapsed")
     with col_btn:
-        st.markdown("<br>", unsafe_allow_html=True)
-        run_ai = st.button("Analyse with AI", type="primary")
+        run_ai = st.button("Analyse with AI", type="primary", use_container_width=True)
 
     if not sel:
         st.info("Please select a country from the dropdown above to view its profile.")
