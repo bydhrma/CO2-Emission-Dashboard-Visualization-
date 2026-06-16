@@ -479,13 +479,11 @@ Data:
 - Population        : {fmt(population)}
 - Primary source    : {dominant_fuel}
 
-Write exactly this sections and don't use generic statements that could apply to any country. Be specific to {country}'s context:
-**Economic Context** (2-3 sentences): Why does this country emit at this level?
-**Policy Landscape** (2-3 sentences): What transitions are realistic here and can be solved with policy?
-**Global Comparison** (2 sentences): How does it compare to regional peers?
+only Write exactly this sections and don't use generic statements that could apply to any country. Be specific to {country}'s context:
+**About the {country}'s ** (make it become one paragraph for Economic Context, Policy Landscape, Global Comparison): Why does this country emit at this level?, What transitions are realistic here and can be solved with policy?, and How does it compare to regional peers?
 **Key Risk or Opportunity** (2 sentences): Most important factor next 5-10 years and solution for the country.
-**Actionable task for Citizen** (2-3 sentences): What can an average citizen do to help reduce emissions in this country?
-**Citizen Health** (2-3 sentences): What are the citizen can do to protect themselves from the health impacts of pollution in this country?
+**Actionable task for Citizen** (3-4 sentences): Provide a highly effective action an average citizen can take to reduce emissions in this country. Include a specific example of why it needs to be considered and why they must do it.
+**Citizen Health** (3-4 sentences): Provide an effective action a citizen can take to protect themselves from the health impacts of pollution in this country. Include a specific example of why it needs to be considered and why they must do it.
 
 Be specific to {country}. No generic statements."""
 
@@ -579,11 +577,15 @@ if "Dashboard" in page:
     col_sel, col_btn = st.columns([3,1])
     with col_sel:
         sel = st.selectbox("Select country", countries,
-                           index=countries.index("Indonesia")
-                           if "Indonesia" in countries else 0)
+                           index=None,
+                           placeholder="Select the country")
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
-        run_ai = st.button("Analyze with AI", type="primary")
+        run_ai = st.button("Analyse with AI", type="primary")
+
+    if not sel:
+        st.info("Please select a country from the dropdown above to view its profile.")
+        st.stop()
 
     row  = latest[latest['country'] == sel].iloc[0]
     co2  = row.get('co2', 0) or 0
@@ -639,7 +641,7 @@ if "Dashboard" in page:
              <strong>Rate limit:</strong> {msg}
           </div>""", unsafe_allow_html=True)
       else:
-          with st.spinner(f" Analyze with AI for {sel}..."):
+          with st.spinner(f" Analysing {sel}..."):
               try:
                   ai_text = get_ai_context(
                       sel, rf_pred, ipcc_lvl, co2, gdp, pop, dom_label
@@ -661,7 +663,7 @@ if "Dashboard" in page:
         st.markdown(f"""
         <div class='ai-box' style='color:#aaa;font-style:italic'>
           <div class='ai-box-header' style='color:#c8a060'>Analysis — {sel}</div>
-          Click <strong style='color:#d4860a'>Analyze with AI</strong> above to get
+          Click <strong style='color:#d4860a'>Analyse with AI</strong> above to get
           economic and policy analysis for {sel} — including economic context,
           policy landscape, global comparisons, and key risks/opportunities.
         </div>""", unsafe_allow_html=True)
